@@ -21,28 +21,5 @@ pub fn create_initialise_ix(
     vault_x: Pubkey,
     vault_y: Pubkey,
 ) -> Instruction {
-    let maker = payer.pubkey();
-
-    Instruction::new_with_bytes(
-        amm_video::id(),
-        &amm_video::instruction::Initialize {
-            seed: 123,
-            fee: 30,
-            authority: Some(maker),
-        }
-        .data(),
-        amm_video::accounts::Initialize {
-            initializer: maker,
-            mint_x,
-            mint_y,
-            mint_lp,
-            vault_x,
-            vault_y,
-            config,
-            token_program: TOKEN_PROGRAM_ID,
-            associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,
-            system_program: SYSTEM_PROGRAM_ID,
-        }
-        .to_account_metas(None),
-    )
+   
 }
