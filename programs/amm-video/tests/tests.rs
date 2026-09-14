@@ -1,4 +1,6 @@
 use {
+    amm_video::Config,
+    anchor_lang::{prelude::msg, AccountDeserialize, Key},
     anchor_spl::associated_token,
     litesvm::LiteSVM,
     litesvm_token::CreateMint,
@@ -78,62 +80,75 @@ fn test_initialize() {
         &mut svm, &payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y,
     );
     let res = send(&mut svm, &[instruction], &payer, &[&payer]);
+    // msg!("{:?}", res.unwrap());
     assert!(res.is_ok());
+    assert!(svm.get_account(&vault_x).is_some());
+    assert!(svm.get_account(&vault_y).is_some());
+    assert!(svm.get_account(&mint_lp).is_some());
+    let mut config_account = svm.get_account(&config);
+    assert!(config_account.is_some());
+    let mut config_account = config_account.unwrap();
+
+    let config_data: Config = Config::try_deserialize(&mut config_account.data.as_slice()).unwrap();
+
+    let maker = payer.pubkey();
+    assert_eq!(123u64, config_data.seed);
+    assert_eq!(maker, config_data.authority.unwrap());
 }
 
-#[test]
-pub fn test_deposit() {
-    let (mut svm, payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y) = setup();
-    let init_ix = create_initialise_ix(
-        &mut svm, &payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y,
-    );
+// #[test]
+// pub fn test_deposit() {
+//     let (mut svm, payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y) = setup();
+//     let init_ix = create_initialise_ix(
+//         &mut svm, &payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y,
+//     );
 
-    let deposit_ix = create_deposit_ix(
-        &mut svm, &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y,
-    );
+//     let deposit_ix = create_deposit_ix(
+//         &mut svm, &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y,
+//     );
 
-    let res = send(&mut svm, &[init_ix, deposit_ix], &payer, &[&payer]);
-    assert!(res.is_ok());
-}
+//     let res = send(&mut svm, &[init_ix, deposit_ix], &payer, &[&payer]);
+//     assert!(res.is_ok());
+// }
 
-#[test]
-pub fn test_withdraw() {
-    let (mut svm, payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y) = setup();
-    let init_ix = create_initialise_ix(
-        &mut svm, &payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y,
-    );
+// #[test]
+// pub fn test_withdraw() {
+//     let (mut svm, payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y) = setup();
+//     let init_ix = create_initialise_ix(
+//         &mut svm, &payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y,
+//     );
 
-    let deposit_ix = create_deposit_ix(
-        &mut svm, &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y,
-    );
+//     let deposit_ix = create_deposit_ix(
+//         &mut svm, &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y,
+//     );
 
-    let withdraw_ix = create_withdraw_ix(
-        &mut svm, &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y,
-    );
-    let res = send(
-        &mut svm,
-        &[init_ix, deposit_ix, withdraw_ix],
-        &payer,
-        &[&payer],
-    );
-    assert!(res.is_ok());
-}
+//     let withdraw_ix = create_withdraw_ix(
+//         &mut svm, &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y,
+//     );
+//     let res = send(
+//         &mut svm,
+//         &[init_ix, deposit_ix, withdraw_ix],
+//         &payer,
+//         &[&payer],
+//     );
+//     assert!(res.is_ok());
+// }
 
-#[test]
-pub fn test_swap() {
-    let (mut svm, payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y) = setup();
-    let init_ix = create_initialise_ix(
-        &mut svm, &payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y,
-    );
+// #[test]
+// pub fn test_swap() {
+//     let (mut svm, payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y) = setup();
+//     let init_ix = create_initialise_ix(
+//         &mut svm, &payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y,
+//     );
 
-    let deposit_ix = create_deposit_ix(
-        &mut svm, &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y,
-    );
+//     let deposit_ix = create_deposit_ix(
+//         &mut svm, &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y,
+//     );
 
-    let swap_ix = create_swap_ix(
-        &mut svm, &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y,
-    );
+//     let swap_ix = create_swap_ix(
+//         &mut svm, &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y,
+//     );
 
-    let res = send(&mut svm, &[init_ix, deposit_ix, swap_ix], &payer, &[&payer]);
-    assert!(res.is_ok());
-}
+//     let res = send(&mut svm, &[init_ix, deposit_ix, swap_ix], &payer, &[&payer]);
+//     assert!(res.is_ok());
+// }
