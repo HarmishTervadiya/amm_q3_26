@@ -129,28 +129,33 @@ pub fn test_deposit() {
     assert_eq!(user_ata_lp_data.amount, 100_000_000);
 }
 
-// #[test]
-// pub fn test_withdraw() {
-//     let (mut svm, payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y) = setup();
-//     let init_ix = create_initialise_ix(
-//         &mut svm, &payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y,
-//     );
+#[test]
+pub fn test_withdraw() {
+    let (mut svm, payer, _swapper, _treasury, mint_x, mint_y, config, mint_lp, vault_x, vault_y, _user_x, _user_y) =
+        setup_pool_with_liquidity();
+    // In setup_pool_with_liquidity, payer deposited 200M of X and Y, and received 100M LP tokens.
+    
+    let withdraw_amount = 50_000_000u64; // withdraw half of LP tokens
+    let expected_x = 100_000_000u64;
+    let expected_y = 100_000_000u64;
 
-//     let deposit_ix = create_deposit_ix(
-//         &mut svm, &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y,
-//     );
+    let withdraw_ix = create_withdraw_ix(
+        &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y, withdraw_amount, expected_x, expected_y,
+    );
+    
+    let res = send(&mut svm, &[withdraw_ix], &payer, &[&payer]);
+    assert!(res.is_ok(), "withdraw failed: {:?}", res);
 
-//     let withdraw_ix = create_withdraw_ix(
-//         &mut svm, &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y,
-//     );
-//     let res = send(
-//         &mut svm,
-//         &[init_ix, deposit_ix, withdraw_ix],
-//         &payer,
-//         &[&payer],
-//     );
-//     assert!(res.is_ok());
-// }
+    let user_ata_x = associated_token::get_associated_token_address(&payer.pubkey(), &mint_x);
+    let user_ata_y = associated_token::get_associated_token_address(&payer.pubkey(), &mint_y);
+    let user_ata_lp = associated_token::get_associated_token_address(&payer.pubkey(), &mint_lp);
+
+    assert_eq!(token_balance(&svm, &user_ata_x), 900_000_000);
+    assert_eq!(token_balance(&svm, &user_ata_y), 900_000_000);
+    assert_eq!(token_balance(&svm, &user_ata_lp), 50_000_000);
+    assert_eq!(token_balance(&svm, &vault_x), 100_000_000);
+    assert_eq!(token_balance(&svm, &vault_y), 100_000_000);
+}
 
 
 // Swap tests
