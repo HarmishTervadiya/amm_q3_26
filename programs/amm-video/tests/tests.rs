@@ -152,21 +152,160 @@ pub fn test_deposit() {
 //     assert!(res.is_ok());
 // }
 
-// #[test]
-// pub fn test_swap() {
-//     let (mut svm, payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y) = setup();
-//     let init_ix = create_initialise_ix(
-//         &mut svm, &payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y,
-//     );
 
-//     let deposit_ix = create_deposit_ix(
-//         &mut svm, &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y,
-//     );
+// Swap tests
 
-//     let swap_ix = create_swap_ix(
-//         &mut svm, &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y,
-//     );
+const FEE_BPS: u16 = 123;
+const GENESIS_X: u64 = 200_000_000;
+const GENESIS_Y: u64 = 200_000_000;
 
-//     let res = send(&mut svm, &[init_ix, deposit_ix, swap_ix], &payer, &[&payer]);
-//     assert!(res.is_ok());
-// }
+fn setup_pool_with_liquidity() -> (
+    LiteSVM,
+    Keypair, // payer / maker
+    Keypair, // swapper
+    Pubkey, // treasury
+    Pubkey, // mint_x
+    Pubkey, // mint_y
+    Pubkey, // config
+    Pubkey, // mint_lp
+    Pubkey, // vault_x
+    Pubkey, // vault_y
+    Pubkey, // swapper_x
+    Pubkey, // swapper_y
+) {
+    let (mut svm, payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y) = setup();
+    let treasury = payer.pubkey(); // maker is payer
+
+    let init_ix = create_initialise_ix(
+        &mut svm, &payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y,
+    );
+    let deposit_ix = create_deposit_ix(
+        &mut svm, &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y,
+    );
+
+    let res = send(&mut svm, &[init_ix, deposit_ix], &payer, &[&payer]);
+    assert!(res.is_ok());
+
+    // Create a separate swapper keypair to avoid ConstraintDuplicateMutableAccount
+    let swapper = Keypair::new();
+    svm.airdrop(&swapper.pubkey(), 1_000_000_000).unwrap();
+
+    use litesvm_token::{CreateAssociatedTokenAccount, MintTo};
+
+    let swapper_x = CreateAssociatedTokenAccount::new(&mut svm, &payer, &mint_x)
+        .owner(&swapper.pubkey())
+        .send()
+        .unwrap();
+    MintTo::new(&mut svm, &payer, &mint_x, &swapper_x, 1000000000)
+        .send()
+        .unwrap();
+
+    let swapper_y = CreateAssociatedTokenAccount::new(&mut svm, &payer, &mint_y)
+        .owner(&swapper.pubkey())
+        .send()
+        .unwrap();
+    MintTo::new(&mut svm, &payer, &mint_y, &swapper_y, 1000000000)
+        .send()
+        .unwrap();
+
+    (svm, payer, swapper, treasury, mint_x, mint_y, config, mint_lp, vault_x, vault_y, swapper_x, swapper_y)
+}
+
+fn token_balance(svm: &LiteSVM, account: &Pubkey) -> u64 {
+    if let Some(acc) = svm.get_account(account) {
+        let data: TokenAccount = TokenAccount::try_deserialize(&mut acc.data.as_slice()).unwrap();
+        data.amount
+    } else {
+        0
+    }
+}
+
+#[test]
+pub fn test_swap_x_for_y() {
+    let (mut svm, _payer, swapper, treasury, mint_x, mint_y, config, mint_lp, vault_x, vault_y, user_x, user_y) =
+        setup_pool_with_liquidity();
+
+    let treasury_x = associated_token::get_associated_token_address(&treasury, &mint_x);
+    let amount_in = 10_000_000u64;
+
+    let swap_ix = create_swap_ix(
+        &swapper, mint_x, mint_y, mint_lp, config, vault_x, vault_y, treasury, true, amount_in, 1,
+    );
+    let res = send(&mut svm, &[swap_ix], &swapper, &[&swapper]);
+    assert!(res.is_ok(), "swap X->Y failed: {:?}", res);
+
+    let expected_treasury_fee = (amount_in * FEE_BPS as u64 / 10_000) / 2;
+    // The treasury is the payer, who started with 1B and deposited 200M (leaving 800M)
+    assert_eq!(token_balance(&svm, &treasury_x), 800_000_000 + expected_treasury_fee);
+    assert_eq!(
+        token_balance(&svm, &vault_x),
+        GENESIS_X + amount_in - expected_treasury_fee
+    );
+    assert!(token_balance(&svm, &user_y) > 1_000_000_000);
+    assert_eq!(
+        token_balance(&svm, &user_x),
+        1_000_000_000 - amount_in
+    );
+}
+
+#[test]
+pub fn test_swap_y_for_x() {
+    let (mut svm, _payer, swapper, treasury, mint_x, mint_y, config, mint_lp, vault_x, vault_y, user_x, user_y) =
+        setup_pool_with_liquidity();
+
+    let treasury_y = associated_token::get_associated_token_address(&treasury, &mint_y);
+    let amount_in = 10_000_000u64;
+
+    let swap_ix = create_swap_ix(
+        &swapper, mint_x, mint_y, mint_lp, config, vault_x, vault_y, treasury, false, amount_in, 1,
+    );
+    let res = send(&mut svm, &[swap_ix], &swapper, &[&swapper]);
+    assert!(res.is_ok(), "swap Y->X failed: {:?}", res);
+
+    let expected_treasury_fee = (amount_in * FEE_BPS as u64 / 10_000) / 2;
+    // The treasury is the payer, who started with 1B and deposited 200M (leaving 800M)
+    assert_eq!(token_balance(&svm, &treasury_y), 800_000_000 + expected_treasury_fee);
+    assert_eq!(
+        token_balance(&svm, &vault_y),
+        GENESIS_Y + amount_in - expected_treasury_fee
+    );
+    assert!(token_balance(&svm, &user_x) > 1_000_000_000);
+    assert_eq!(
+        token_balance(&svm, &user_y),
+        1_000_000_000 - amount_in
+    );
+}
+
+#[test]
+fn test_swap_rejects_slippage() {
+    let (mut svm, _payer, swapper, treasury, mint_x, mint_y, config, mint_lp, vault_x, vault_y, _user_x, _user_y) =
+        setup_pool_with_liquidity();
+
+    let bad_ix = create_swap_ix(
+        &swapper,
+        mint_x,
+        mint_y,
+        mint_lp,
+        config,
+        vault_x,
+        vault_y,
+        treasury,
+        true,
+        10_000_000,
+        u64::MAX,
+    );
+    let res = send(&mut svm, &[bad_ix], &swapper, &[&swapper]);
+    assert!(res.is_err(), "swap breaching min_amount_out must fail");
+}
+
+#[test]
+fn test_swap_rejects_zero_amount() {
+    let (mut svm, _payer, swapper, treasury, mint_x, mint_y, config, mint_lp, vault_x, vault_y, _user_x, _user_y) =
+        setup_pool_with_liquidity();
+
+    let bad_ix = create_swap_ix(
+        &swapper, mint_x, mint_y, mint_lp, config, vault_x, vault_y, treasury, true, 0, 0,
+    );
+    let res = send(&mut svm, &[bad_ix], &swapper, &[&swapper]);
+    assert!(res.is_err(), "zero-amount swap must fail");
+}

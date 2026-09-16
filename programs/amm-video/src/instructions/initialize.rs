@@ -62,6 +62,7 @@ impl<'info> Initialize<'info> {
         seed: u64,
         fee: u16,
         authority: Option<Pubkey>,
+        treasury: Pubkey,
         bumps: &InitializeBumps,
     ) -> Result<()> {
         self.config.set_inner(Config {
@@ -73,6 +74,7 @@ impl<'info> Initialize<'info> {
             locked: false,
             config_bump: bumps.config,
             lp_bump: bumps.lp_token,
+            treasury,
         });
 
         Ok(())

@@ -41,6 +41,8 @@ pub enum AmmError {
     InsufficientBalance,
     #[msg("Zero balance.")]
     ZeroBalance,
+    #[msg("Invalid Treasury.")]
+    InvalidTreasury,
 }
 
 impl From<CurveError> for AmmError {

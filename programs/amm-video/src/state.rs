@@ -11,4 +11,5 @@ pub struct Config {
     pub locked: bool,              // If the pool is locked
     pub config_bump: u8,           // Bump seed for the config account
     pub lp_bump: u8,               // Bump seed for the LP token
+    pub treasury: Pubkey,          // Treasury account for fees
 }
