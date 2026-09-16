@@ -1,7 +1,7 @@
 use {
     amm_video::Config,
     anchor_lang::{prelude::msg, AccountDeserialize, Key},
-    anchor_spl::associated_token,
+    anchor_spl::{associated_token, token::TokenAccount},
     litesvm::LiteSVM,
     litesvm_token::CreateMint,
     solana_keypair::Keypair,
@@ -96,20 +96,38 @@ fn test_initialize() {
     assert_eq!(maker, config_data.authority.unwrap());
 }
 
-// #[test]
-// pub fn test_deposit() {
-//     let (mut svm, payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y) = setup();
-//     let init_ix = create_initialise_ix(
-//         &mut svm, &payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y,
-//     );
+#[test]
+pub fn test_deposit() {
+    let (mut svm, payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y) = setup();
+    let init_ix = create_initialise_ix(
+        &mut svm, &payer, mint_x, mint_y, config, mint_lp, vault_x, vault_y,
+    );
 
-//     let deposit_ix = create_deposit_ix(
-//         &mut svm, &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y,
-//     );
+    let deposit_ix = create_deposit_ix(
+        &mut svm, &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y,
+    );
 
-//     let res = send(&mut svm, &[init_ix, deposit_ix], &payer, &[&payer]);
-//     assert!(res.is_ok());
-// }
+    let res = send(&mut svm, &[init_ix, deposit_ix], &payer, &[&payer]);
+    println!("Deposit transaction result: {:?}", res);
+    assert!(res.is_ok());
+
+    let user_ata_lp = associated_token::get_associated_token_address(&payer.pubkey(), &mint_lp);
+
+    let vault_x_account = svm.get_account(&vault_x).unwrap();
+    let vault_y_account = svm.get_account(&vault_y).unwrap();
+    let user_ata_lp_account = svm.get_account(&user_ata_lp).unwrap();
+
+    let vault_x_data: TokenAccount =
+        TokenAccount::try_deserialize(&mut vault_x_account.data.as_slice()).unwrap();
+    let vault_y_data: TokenAccount =
+        TokenAccount::try_deserialize(&mut vault_y_account.data.as_slice()).unwrap();
+    let user_ata_lp_data: TokenAccount =
+        TokenAccount::try_deserialize(&mut user_ata_lp_account.data.as_slice()).unwrap();
+
+    assert_eq!(vault_x_data.amount, 200_000_000);
+    assert_eq!(vault_y_data.amount, 200_000_000);
+    assert_eq!(user_ata_lp_data.amount, 100_000_000);
+}
 
 // #[test]
 // pub fn test_withdraw() {
